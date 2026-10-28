@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#061725">
+  <title>PipeGuide Next — Workspace</title>
+  <link rel="stylesheet" href="./src/styles.css">
+  <script type="module" src="./src/main.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#viewport">뷰포트로 이동</a>
+  <header class="header">
+    <a class="brand" href="#explore" aria-label="PipeGuide Next 탐색"><strong><span>Pipe</span>Guide</strong><small>NEXT</small></a>
+    <div class="project-label"><span class="status-dot"></span>새 워크스페이스 <span class="project-badge">UI MVP</span></div>
+    <div class="header-tools">
+      <span class="data-state">설계 데이터 미연결</span>
+      <button class="icon-button" id="modules-button" aria-label="모듈 및 데이터 설정" aria-expanded="false" aria-controls="drawer" data-icon="settings"></button>
+      <button class="icon-button" id="help-button" aria-label="도움말" data-icon="help"></button>
+    </div>
+  </header>
+  <nav class="rail" aria-label="작업 모드">
+    <div class="rail-modes">
+      <button data-mode="explore" aria-current="page"><span data-icon="ship"></span><span>탐색</span></button>
+      <button data-mode="review"><span data-icon="review"></span><span>문제 검토</span></button>
+      <button data-mode="improve"><span data-icon="route"></span><span>경로 개선</span></button>
+    </div>
+    <span class="rail-caption">WORKSPACE</span>
+    <div class="rail-bottom"><span class="connection-dot"></span><span>독립 실행</span></div>
+  </nav>
+  <main class="workspace" id="workspace">
+    <section class="viewport" id="viewport" tabindex="0" aria-label="3D 뷰포트. 설계 모델 없음. 드래그로 보기 방향 조절">
+      <canvas id="viewport-canvas" aria-hidden="true"></canvas>
+      <div class="viewport-atmosphere" aria-hidden="true"></div>
+      <div class="viewport-watermark" aria-hidden="true">PIPE<span>GUIDE</span><small>INDEPENDENT DESIGN WORKSPACE</small></div>
+      <div class="empty-model" id="empty-model">
+        <div class="empty-symbol" data-icon="cube"></div>
+        <span class="eyebrow">YOUR NEXT VESSEL STARTS HERE</span>
+        <h1>선박 모델을 연결해 시작하세요</h1>
+        <p>선박·장비·배관 데이터를 하나의 화면에서.<br>현재는 설계 데이터가 없는 독립 UI 워크스페이스입니다.</p>
+        <button class="primary-button" id="connect-button"><span data-icon="plus"></span>모듈 연결 안내</button>
+        <span class="empty-footnote">기존 선박 모델 · 고정 좌표 · 예시 설계 데이터 없음</span>
+      </div>
+    </section>
+    <div class="top-overlay">
+      <form class="search" id="search-form" role="search">
+        <span data-icon="search"></span><input id="object-search" type="search" placeholder="배관 번호, 장비명, 공간명 검색" aria-label="설계 대상 검색" autocomplete="off"><kbd>/</kbd>
+      </form>
+      <div class="view-toggle" role="group" aria-label="보기 차원"><button data-view="3d" aria-pressed="true">3D</button><button data-view="2d" aria-pressed="false">2D</button></div>
+    </div>
+    <div class="mode-heading"><span class="eyebrow" id="mode-kicker">SHIP EXPLORER</span><h2 id="mode-heading">선박 탐색</h2><p id="mode-description">배관·장비·공간을 한눈에 확인하세요.</p></div>
+    <aside class="tool-rail" aria-label="뷰포트 도구">
+      <button class="icon-button" id="reset-view" aria-label="보기 방향 초기화" data-icon="reset"></button>
+      <button class="icon-button" id="rotate-view" aria-label="보기 자동 회전" aria-pressed="false" data-icon="rotate"></button>
+      <button class="icon-button" id="fit-view" aria-label="모델 전체 보기" data-icon="frame" disabled title="연결된 모델이 없습니다"></button>
+      <button class="icon-button" id="layers-button" aria-label="표시 레이어 안내" data-icon="layers"></button>
+    </aside>
+    <section class="task-panel" id="task-panel" hidden aria-label="작업 패널"></section>
+    <section class="search-results" id="search-results" aria-label="검색 결과" hidden></section>
+    <div class="axis-panel"><div class="axis-gizmo" id="axis-gizmo" aria-hidden="true"><i></i><span class="axis-y">Y</span><span class="axis-x">X</span><span class="axis-z">Z</span></div><span>보기 방향 · UI 기준</span></div>
+    <div class="category-tabs" role="group" aria-label="탐색 대상"><button data-category="pipes" aria-pressed="true">배관</button><button data-category="equipment" aria-pressed="false">장비</button><button data-category="spaces" aria-pressed="false">공간</button></div>
+    <div class="viewport-note"><span id="view-caption">3D 뷰포트</span><span id="renderer-status">초기화 중</span></div>
+  </main>
+  <aside class="drawer" id="drawer" aria-labelledby="drawer-title" hidden><div class="drawer-header"><div><span class="eyebrow">WORKSPACE SETTINGS</span><h2 id="drawer-title">모듈 · 데이터</h2></div><button id="close-drawer" class="icon-button" aria-label="설정 닫기" data-icon="close"></button></div><div id="drawer-content"></div></aside>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
