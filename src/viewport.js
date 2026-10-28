@@ -1,8 +1,8 @@
 /** Native WebGL viewport scaffold. Only a UI orientation gizmo is drawn; no design geometry. */
 export function createViewport(canvas, { onStatus = () => {} } = {}) {
   const gl = canvas.getContext('webgl', { alpha: true, antialias: true });
-  if (!gl) { onStatus('WebGL 미지원 · UI 사용 가능'); return { setView() {}, setRotating() {}, reset() {}, destroy() {} }; }
-  let yaw = .6, pitch = .4, view = '3d', rotating = false, animation = 0, last = 0, drag = null, program, buffer;
+  if (!gl) { onStatus('WebGL 미지원 · UI 사용 가능'); return { setView() {},setVisible() {}, setRotating() {}, reset() {}, destroy() {} }; }
+  let yaw = .6, pitch = .4, view = '3d', visible=true, rotating = false, animation = 0, last = 0, drag = null, program, buffer;
   function compile(type, source) {
     const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader);
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
@@ -20,7 +20,7 @@ export function createViewport(canvas, { onStatus = () => {} } = {}) {
     onStatus('WebGL 준비 · 모델 없음'); render();
   }
   function render() {
-    if (gl.isContextLost()) return;
+    if (!visible||gl.isContextLost()) return;
     const rect = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
     if (!rect.width || !rect.height) return;
     const w = Math.round(rect.width * dpr), h = Math.round(rect.height * dpr);
@@ -31,13 +31,13 @@ export function createViewport(canvas, { onStatus = () => {} } = {}) {
     gl.uniformMatrix3fv(gl.getUniformLocation(program, 'orientation'), false, [cy, sy*sp, -sy*cp, 0, cp, sp, sy, -cy*sp, cy*cp]);
     gl.uniform2f(gl.getUniformLocation(program, 'size'), rect.width, rect.height); gl.drawArrays(gl.LINES, 0, 6);
   }
-  function frame(now) { animation = 0; if (!rotating || document.hidden || gl.isContextLost()) return; yaw += Math.min((now-last)/1000, .05)*.35; last=now; render(); animation=requestAnimationFrame(frame); }
-  function setRotating(on) { rotating=on; cancelAnimationFrame(animation); if (on && !document.hidden) { last=performance.now(); animation=requestAnimationFrame(frame); } }
+  function frame(now) { animation = 0; if (!visible||!rotating || document.hidden || gl.isContextLost()) return; yaw += Math.min((now-last)/1000, .05)*.35; last=now; render(); animation=requestAnimationFrame(frame); }
+  function setRotating(on) { rotating=on; cancelAnimationFrame(animation); if (on && visible&&!document.hidden) { last=performance.now(); animation=requestAnimationFrame(frame); } }
   const surface = canvas.parentElement;
   function pointerDown(e) { if (e.button !== 0 || e.target !== canvas) return; drag={x:e.clientX,y:e.clientY}; canvas.setPointerCapture(e.pointerId); }
   function pointerMove(e) { if (!drag || view==='2d') return; yaw+=(e.clientX-drag.x)*.008; pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-drag.y)*.008)); drag={x:e.clientX,y:e.clientY}; render(); }
   function pointerUp() { drag=null; }
-  function key(e) { if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(e.key)) return; e.preventDefault(); if(e.key==='Home') reset(); else if(view==='3d'){yaw+=e.key==='ArrowLeft'?-.1:e.key==='ArrowRight'?.1:0;pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.key==='ArrowUp'?-.1:e.key==='ArrowDown'?.1:0)));render();} }
+  function key(e) { if (!visible||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(e.key)) return; e.preventDefault(); if(e.key==='Home') reset(); else if(view==='3d'){yaw+=e.key==='ArrowLeft'?-.1:e.key==='ArrowRight'?.1:0;pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.key==='ArrowUp'?-.1:e.key==='ArrowDown'?.1:0)));render();} }
   function reset() { yaw=view==='2d'?0:.6; pitch=view==='2d'?Math.PI/2:.4; render(); }
   function lost(e) { e.preventDefault(); cancelAnimationFrame(animation); onStatus('WebGL 연결 중단 · 복구 대기'); }
   function restored() { setup(); setRotating(rotating); }
@@ -46,6 +46,7 @@ export function createViewport(canvas, { onStatus = () => {} } = {}) {
   canvas.addEventListener('webglcontextlost',lost); canvas.addEventListener('webglcontextrestored',restored); document.addEventListener('visibilitychange',visibility);
   const observer = new ResizeObserver(render); observer.observe(canvas); setup();
   return {
+    setVisible(on){if(visible===on)return;visible=on;drag=null;cancelAnimationFrame(animation);if(on){render();setRotating(rotating);}},
     setView(next) { view=next; reset(); }, setRotating, reset,
     destroy() { cancelAnimationFrame(animation); observer.disconnect(); canvas.removeEventListener('pointerdown',pointerDown); canvas.removeEventListener('pointermove',pointerMove); canvas.removeEventListener('pointerup',pointerUp); canvas.removeEventListener('pointercancel',pointerUp); surface.removeEventListener('keydown',key); canvas.removeEventListener('webglcontextlost',lost); canvas.removeEventListener('webglcontextrestored',restored); document.removeEventListener('visibilitychange',visibility); gl.deleteBuffer(buffer); gl.deleteProgram(program); }
   };
