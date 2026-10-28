@@ -2,6 +2,8 @@ import { hydrateIcons, icon } from './icons.js';
 import { createUIState, modes, categories } from './state.js';
 import { createViewport } from './viewport.js';
 import { createModuleRegistry } from './modules/registry.js';
+import { createIntro } from './intro/intro.js';
+import { createModeWorkspace } from './workspace-panels.js';
 
 const $ = selector => document.querySelector(selector);
 const ui = createUIState();
@@ -25,14 +27,14 @@ function showDrawer(kind='modules', opener=document.activeElement) {
   $('#close-drawer').focus();
 }
 function closeDrawer() { if($('#drawer').hidden)return;$('#drawer').hidden=true;$('#modules-button').setAttribute('aria-expanded','false');drawerOpener?.focus(); }
+const modeWorkspace=createModeWorkspace({getMode:()=>ui.get().mode,onModeChange:mode=>setMode(mode),openSettings:opener=>showDrawer('modules',opener)});
 function update(state) {
   const mode=modes[state.mode]; $('#mode-heading').textContent=mode.title;$('#mode-kicker').textContent=mode.kicker;$('#mode-description').textContent=mode.description;
   document.querySelectorAll('[data-mode]').forEach(el=>{if(el.dataset.mode===state.mode)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});
   document.querySelectorAll('[data-category]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.category===state.category)));
   document.querySelectorAll('[data-view]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.view===state.view)));
   $('#rotate-view').setAttribute('aria-pressed',String(state.rotating)); $('#view-caption').textContent=`${state.view.toUpperCase()} 뷰포트`;
-  const panel=$('#task-panel');panel.hidden=state.mode==='explore';
-  if(!panel.hidden) { const review=state.mode==='review';panel.innerHTML=`<div class="task-header"><span class="eyebrow">${review?'REVIEW PANEL':'IMPROVEMENT PANEL'}</span><button class="plain-button" id="close-task" aria-label="탐색 모드로 돌아가기">${icon('close')}</button></div><h3>${review?'검토할 데이터가 없습니다':'개선할 경로가 없습니다'}</h3><p>${review?'연결 판정·승인, 배관 네트워크, 구조 정보를 연결한 뒤 검토할 수 있습니다.':'배관 경로, 공간·장애물 정보와 계산 모듈을 연결한 뒤 대안을 만들 수 있습니다.'}</p><div class="task-placeholder">${review?'검사 결과 미생성 · 승인 이력 없음':'기준 경로 없음 · 비교 결과 없음'}</div><button class="primary-button" disabled>${review?'검토 시작':'수정안 생성'}</button><span class="disabled-reason">관련 기능 모듈 미연결</span>`;$('#close-task').onclick=()=>setMode('explore'); }
+  modeWorkspace.render();
 }
 ui.subscribe(update);update(ui.get());
 function setMode(mode, writeHash=true) { ui.set({mode});$('#search-results').hidden=true;if(writeHash)history.replaceState(null,'',`#${mode}`); }
@@ -47,6 +49,7 @@ $('#search-form').onsubmit=e=>{e.preventDefault();const text=$('#object-search')
 $('#object-search').oninput=()=>{if(!$('#object-search').value)$('#search-results').hidden=true;};
 window.addEventListener('hashchange',()=>{const mode=location.hash.slice(1);if(modes[mode])setMode(mode,false);});
 const initialMode=location.hash.slice(1);if(modes[initialMode])setMode(initialMode,false);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();$('#search-results').hidden=true;}if(e.key==='/'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();$('#object-search').focus();}});
+document.addEventListener('keydown',e=>{if(document.body.classList.contains('intro-active'))return;if(e.key==='Escape'){closeDrawer();$('#search-results').hidden=true;}if(e.key==='/'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();$('#object-search').focus();}});
+const intro=createIntro({onEnter:()=>{setMode('explore');}});
 // A nonmodal drawer keeps the canvas accessible; Escape returns focus to its opener.
-window.addEventListener('pagehide',event=>{if(!event.persisted){viewport.destroy();clearTimeout(toastTimer);}});
+window.addEventListener('pagehide',event=>{if(!event.persisted){intro.destroy();viewport.destroy();clearTimeout(toastTimer);}});

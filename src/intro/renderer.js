@@ -1,0 +1,49 @@
+import { createShipVisual } from './ship-visual.js';
+
+const normalize=v=>{const n=Math.hypot(...v);return v.map(x=>x/n);};
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
+export function multiply(a,b){const out=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)out[c*4+r]+=a[k*4+r]*b[c*4+k];return out;}
+export function presentationCamera(aspect, portrait=false){
+  const distanceScale=portrait?Math.max(1,.85/aspect):1;
+  const eye=(portrait?[-8,5,10]:[-6.6,4.0,8.0]).map(v=>v*distanceScale),target=[0,.35,0],z=normalize(eye.map((v,i)=>v-target[i])),x=normalize(cross([0,1,0],z)),y=cross(z,x);
+  const view=[x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1];
+  const f=1/Math.tan(32*Math.PI/360),near=.1,far=70;
+  return multiply([f/aspect,0,0,0,0,f,0,0,0,0,(far+near)/(near-far),-1,0,0,2*far*near/(near-far),0],view);
+}
+
+/** Own GPU buffers and animation. No workspace module registry, coordinates or model objects. */
+export function createIntroRenderer(canvas,{onError=()=>{}}={}){
+  const gl=canvas.getContext('webgl',{alpha:true,antialias:true,premultipliedAlpha:false});
+  if(!gl){onError('이 브라우저에서는 WebGL을 사용할 수 없습니다. EXPLORE SHIP으로 워크스페이스에 진입할 수 있습니다.');return {setActive(){},setPlaying(){},reset(){},destroy(){}};}
+  const visual=createShipVisual();let active=false,playing=true,angle=0,raf=0,last=0,drag=null,resources=[],targets=[],sceneProgram,blurProgram,composeProgram,quad,solid,wire,ambient;
+  function program(vs,fs){const shaders=[ [gl.VERTEX_SHADER,vs],[gl.FRAGMENT_SHADER,fs] ].map(([type,source])=>{const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;});const p=gl.createProgram();for(const s of shaders)gl.attachShader(p,s);gl.linkProgram(p);for(const s of shaders)gl.deleteShader(s);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));resources.push(['program',p]);return p;}
+  function buffer(data){const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);resources.push(['buffer',b]);return {buffer:b,count:data.length/6};}
+  function initialize(){
+    resources=[];targets=[];
+    sceneProgram=program('attribute vec3 position;attribute vec3 color;uniform mat4 camera;uniform float angle;uniform float shift;varying vec3 rgb;void main(){float c=cos(angle),s=sin(angle);vec3 p=vec3(c*position.x+s*position.z,position.y,-s*position.x+c*position.z);gl_Position=camera*vec4(p,1.0);gl_Position.x+=shift*gl_Position.w;rgb=color;}', 'precision mediump float;varying vec3 rgb;void main(){gl_FragColor=vec4(rgb,1.0);}');
+    const quadShader='attribute vec2 position;varying vec2 uv;void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}';
+    blurProgram=program(quadShader,'precision mediump float;varying vec2 uv;uniform sampler2D source;uniform vec2 stepSize;uniform float extract;void main(){vec3 sum=vec3(0.);for(int i=-5;i<=5;i++){vec3 c=texture2D(source,uv+stepSize*float(i)).rgb;float mask=mix(1.,smoothstep(.18,.6,max(c.r,max(c.g,c.b))),extract);sum+=c*mask*(1.-abs(float(i))/6.)/6.;}gl_FragColor=vec4(sum,1.);}');
+    composeProgram=program(quadShader,'precision mediump float;varying vec2 uv;uniform sampler2D source;uniform sampler2D glow;void main(){vec4 base=texture2D(source,uv);vec3 halo=texture2D(glow,uv).rgb*1.7;vec3 c=base.rgb+halo;float a=max(base.a,clamp(max(halo.r,max(halo.g,halo.b))*2.,0.,.8));gl_FragColor=vec4(c,a);}');
+    solid=buffer(visual.solid);wire=buffer(visual.wire);ambient=buffer(visual.ambient);quad=buffer(new Float32Array([-1,-1,3,-1,-1,3]));resize();
+  }
+  function releaseTargets(){for(const t of targets){gl.deleteFramebuffer(t.frame);gl.deleteTexture(t.texture);if(t.depth)gl.deleteRenderbuffer(t.depth);}targets=[];}
+  function target(w,h,depth=false){const texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,texture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);const frame=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,frame);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,texture,0);let d=null;if(depth){d=gl.createRenderbuffer();gl.bindRenderbuffer(gl.RENDERBUFFER,d);gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,w,h);gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,d);}if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('인트로 렌더 타깃 초기화 실패');return {w,h,texture,frame,depth:d};}
+  function resize(){if(gl.isContextLost())return;const r=canvas.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,1.5),w=Math.max(1,Math.round(r.width*dpr)),h=Math.max(1,Math.round(r.height*dpr));if(w===canvas.width&&h===canvas.height&&targets.length)return;canvas.width=w;canvas.height=h;releaseTargets();targets=[target(w,h,true),target(Math.max(1,w>>1),Math.max(1,h>>1)),target(Math.max(1,w>>1),Math.max(1,h>>1))];if(active)render();}
+  function sceneGeometry(data,mode,rotation,camera,shift){gl.useProgram(sceneProgram);gl.bindBuffer(gl.ARRAY_BUFFER,data.buffer);for(const [name,offset]of [['position',0],['color',12]]){const at=gl.getAttribLocation(sceneProgram,name);gl.enableVertexAttribArray(at);gl.vertexAttribPointer(at,3,gl.FLOAT,false,24,offset);}gl.uniformMatrix4fv(gl.getUniformLocation(sceneProgram,'camera'),false,camera);gl.uniform1f(gl.getUniformLocation(sceneProgram,'angle'),rotation);gl.uniform1f(gl.getUniformLocation(sceneProgram,'shift'),shift);gl.drawArrays(mode,0,data.count);}
+  function bindTexture(p,name,texture,unit){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(gl.getUniformLocation(p,name),unit);}
+  function fullscreen(p){gl.useProgram(p);gl.bindBuffer(gl.ARRAY_BUFFER,quad.buffer);const at=gl.getAttribLocation(p,'position');gl.enableVertexAttribArray(at);gl.vertexAttribPointer(at,2,gl.FLOAT,false,0,0);}
+  function blur(from,to,horizontal,extract){gl.bindFramebuffer(gl.FRAMEBUFFER,to.frame);gl.viewport(0,0,to.w,to.h);fullscreen(blurProgram);bindTexture(blurProgram,'source',from.texture,0);gl.uniform2f(gl.getUniformLocation(blurProgram,'stepSize'),horizontal?1.5/from.w:0,horizontal?0:1.5/from.h);gl.uniform1f(gl.getUniformLocation(blurProgram,'extract'),extract?1:0);gl.drawArrays(gl.TRIANGLES,0,3);}
+  function render(){if(!active||gl.isContextLost()||!targets.length)return;const portrait=canvas.clientWidth<760,camera=presentationCamera(canvas.width/canvas.height,portrait),shift=portrait?0:.27;gl.bindFramebuffer(gl.FRAMEBUFFER,targets[0].frame);gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.disable(gl.BLEND);gl.disable(gl.DEPTH_TEST);gl.depthMask(false);sceneGeometry(ambient,gl.LINES,0,camera,shift);gl.enable(gl.DEPTH_TEST);gl.depthMask(true);gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);sceneGeometry(solid,gl.TRIANGLES,angle,camera,shift);gl.disable(gl.POLYGON_OFFSET_FILL);gl.depthMask(false);sceneGeometry(wire,gl.LINES,angle,camera,shift);gl.disable(gl.DEPTH_TEST);blur(targets[0],targets[1],true,true);blur(targets[1],targets[2],false,false);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,canvas.width,canvas.height);fullscreen(composeProgram);bindTexture(composeProgram,'source',targets[0].texture,0);bindTexture(composeProgram,'glow',targets[2].texture,1);gl.drawArrays(gl.TRIANGLES,0,3);gl.depthMask(true);}
+  function frame(now){raf=0;if(!active||document.hidden)return;if(playing&&!drag)angle+=Math.min((now-last)/1000,.05)*.055;last=now;render();if(playing||drag)raf=requestAnimationFrame(frame);}
+  function schedule(){cancelAnimationFrame(raf);if(active&&!document.hidden){last=performance.now();raf=requestAnimationFrame(frame);}}
+  const observer=new ResizeObserver(resize);observer.observe(canvas);
+  const down=e=>{if(e.button===0){drag={x:e.clientX};canvas.setPointerCapture(e.pointerId);}};
+  const move=e=>{if(drag){angle+=(e.clientX-drag.x)*.008;drag={x:e.clientX};render();}};
+  const up=()=>{drag=null;schedule();};const visibility=()=>schedule();
+  const lost=e=>{e.preventDefault();cancelAnimationFrame(raf);onError('3D 연결이 중단되었습니다. 복구 중에도 워크스페이스에 진입할 수 있습니다.');};
+  const restored=()=>{try{initialize();schedule();onError('');}catch{onError('3D 표시를 복구할 수 없습니다. 워크스페이스 진입은 가능합니다.');}};
+  canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);canvas.addEventListener('webglcontextlost',lost);canvas.addEventListener('webglcontextrestored',restored);document.addEventListener('visibilitychange',visibility);
+  try{initialize();}catch{onError('3D 표시를 초기화할 수 없습니다. 워크스페이스 진입은 가능합니다.');}
+  return {setActive(on){active=on;if(on)resize();schedule();},setPlaying(on){playing=on;schedule();},reset(){angle=0;render();},destroy(){active=false;cancelAnimationFrame(raf);observer.disconnect();releaseTargets();for(const [type,r]of resources)type==='program'?gl.deleteProgram(r):gl.deleteBuffer(r);canvas.removeEventListener('pointerdown',down);canvas.removeEventListener('pointermove',move);canvas.removeEventListener('pointerup',up);canvas.removeEventListener('pointercancel',up);canvas.removeEventListener('webglcontextlost',lost);canvas.removeEventListener('webglcontextrestored',restored);document.removeEventListener('visibilitychange',visibility);}};
+}

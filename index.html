@@ -6,9 +6,22 @@
   <meta name="theme-color" content="#061725">
   <title>PipeGuide Next — Workspace</title>
   <link rel="stylesheet" href="./src/styles.css">
+  <link rel="stylesheet" href="./src/intro/intro.css">
+  <link rel="stylesheet" href="./src/workspace.css">
   <script type="module" src="./src/main.js"></script>
 </head>
-<body>
+<body class="intro-active">
+  <section class="intro" id="intro" aria-label="PipeGuide 시작 화면">
+    <canvas id="intro-canvas" aria-label="시각 효과용 네온 LNG 탱커. 실제 설계 모델이 아닙니다. 드래그로 회전할 수 있습니다." role="img"></canvas>
+    <div class="intro-frame" aria-hidden="true"><svg viewBox="0 0 1000 600" preserveAspectRatio="none"><path d="M16 1H984L999 16V584L984 599H16L1 584V410L6 403V182L1 175V16Z" fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg></div>
+    <div class="intro-copy"><h1><span>Pipe</span>Guide</h1><p class="intro-subtitle">Ship Piping Digital Twin</p><p class="intro-tagline">선박의 배관을 더 쉽게, 더 정확하게</p></div>
+    <button class="intro-enter" id="explore-ship">EXPLORE SHIP <span aria-hidden="true">→</span></button>
+    <span class="intro-caption">LNG VESSEL / PIPING DIGITAL TWIN</span>
+    <span class="intro-presentation">VISUAL CONCEPT · NOT DESIGN DATA</span>
+    <button class="intro-pause" id="intro-pause" aria-label="선박 회전 일시 정지" aria-pressed="true"><span aria-hidden="true">Ⅱ</span></button>
+    <span class="intro-help">DRAG TO ROTATE</span>
+    <p class="intro-error" id="intro-error" role="status" hidden></p>
+  </section>
   <a class="skip-link" href="#viewport">뷰포트로 이동</a>
   <header class="header">
     <a class="brand" href="#explore" aria-label="PipeGuide Next 탐색"><strong><span>Pipe</span>Guide</strong><small>NEXT</small></a>
