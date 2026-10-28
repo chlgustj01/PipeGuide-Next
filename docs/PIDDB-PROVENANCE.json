@@ -1,0 +1,17 @@
+{
+  "archive": "PipeGuide_v10_github.zip",
+  "archiveSha256": "D33ADF9B8C83C7D25723E1ED8472217448CF9BEAECA8872D45515AA8C0589ED0",
+  "engineEntry": "PipeGuide_v10/src/14_piddb.js",
+  "dataEntry": "PipeGuide_v10/src/10_db.js",
+  "expectedEntry": "PipeGuide_v10/contrib/hyeonseo/linksFor_시연도면5장.csv",
+  "engineChanges": [
+    "ES module export",
+    "Legacy screen names in comments removed",
+    "Coordinate NONE description made independent; no decision logic changes"
+  ],
+  "originalEntrySha256": {
+    "PipeGuide_v10/src/14_piddb.js": "BEE4407E81A1174C82490CE88AF373935D08A25E0AB60C928FCF1731658A7523",
+    "PipeGuide_v10/src/10_db.js": "1557812D58F82664DFB715EDF3D00F52569544A17655B526767B3631F2F4ACCF",
+    "PipeGuide_v10/contrib/hyeonseo/linksFor_시연도면5장.csv": "F985770709ECFF1BAC9B50F6F2A0FB64DFA98C62B746938BDF50F309B8B83335"
+  }
+}
